@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zw.bms.mapper.PaymentDailyMapper">
+
+	<!-- 通用查询映射结果 -->
+	<resultMap id="BaseResultMap" type="com.zw.bms.model.PaymentDaily">
+		<id column="id" property="id" />
+		<result column="location" property="location" />
+		<result column="daily_date" property="dailyDate" />
+		<result column="date_start" property="dateStart" />
+		<result column="date_end" property="dateEnd" />
+		<result column="create_user" property="createUser" />
+		<result column="update_user" property="updateUser" />
+		<result column="create_time" property="createTime" />
+		<result column="update_time" property="updateTime" />
+	</resultMap>
+	
+	<select id="queryPaymentDailyData" resultType="hashmap" parameterType="Map">
+	    SELECT car.id AS carId,
+	           car.car_no AS carNo,
+	           inCar.id AS inCarId,
+	           inCar.car_no AS inCarNo,
+	           date_format(detail.bill_time,'%Y-%m-%d') AS billTime,
+	           car.goods_store_no AS goodsStoreNo,
+	           car.contract_no AS contractNo,
+	           car.waybill_no AS waybillNo,
+	           cust.name AS custName,
+	           IFNULL(type.name,type2.name) AS chargeTypeName,
+	           hw.name AS goodsName,
+	           car.goods_quantity AS goodsQuantity,
+	           car.park_days AS parkDays,
+	           car.stock_days AS stockDays,
+	           car.out_stock_no AS outStockNo,
+	           IFNULL(u.login_name,u2.login_name) AS loginName,
+	           IFNULL(u.name,u2.name) AS userName,
+	           lx.name AS paymentMode,
+	           IF(car.net_weight > 0,car.net_weight,0) AS netWeight,
+	           SUM(detail.amount) sumAmount,
+               SUM(IF(item.type = 'CCFY',detail.amount,0)) AS ccfAmount,
+               SUM(IF(item.type = 'WSFY',detail.amount,0)) AS wsfAmount,
+               SUM(IF(item.type = 'GLFY',detail.amount,0)) AS glfAmount,
+               SUM(IF(item.type = 'TCFY',detail.amount,0)) AS tcfAmount,
+               SUM(IF(item.type = 'DHFY',detail.amount,0)) AS dhfAmount,
+               SUM(IF(item.type = 'YDFY',detail.amount,0)) AS ydfAmount,
+               SUM(IF(item.type = 'ZXFY',detail.amount,0)) AS zxfAmount,
+               SUM(IF(item.type = 'ZGFY',detail.amount,0)) AS zgfAmount,
+               SUM(IF(item.type = 'KHYHFY',detail.amount,0)) AS khyhfAmount,
+               SUM(IF(item.type = 'QTFY',detail.amount,0)) AS qtfAmount,
+               SUM(IF(detail.payment_mode = '1',detail.amount,0)) AS cashAmount,
+               <![CDATA[ SUM(IF(detail.payment_mode != '2',detail.amount,0)) AS payedAmount, ]]>
+               SUM(IF(detail.payment_mode = '2',detail.amount,0)) AS nonPayAmount
+	    FROM bi_car_info car
+	    LEFT JOIN bi_car_info inCar ON car.goods_in_car_id = inCar.id
+	    INNER JOIN bi_payment pay ON pay.car_id = car.id
+        INNER JOIN bi_payment_detail detail ON pay.id = detail.pay_id
+        INNER JOIN bi_charge_item item ON item.id = detail.item_id
+        LEFT JOIN bi_charge_type type ON car.charge_type = type.id
+        LEFT JOIN bi_charge_type type2 ON pay.charge_type_id = type2.id
+        LEFT JOIN bi_dictionary hw ON hw.id = car.goods_name
+        LEFT JOIN bi_big_customer cust ON cust.id = car.customer_id 
+        LEFT JOIN user u ON u.login_name = car.out_user
+        LEFT JOIN user u2 ON u2.login_name = pay.update_user
+        LEFT JOIN bi_dictionary lx ON lx.code = car.payment_mode
+        WHERE 1 = 1 
+        AND (detail.daily_date IS NULL OR detail.daily_date = '')
+        
+        <if test="param.location != null and param.location != ''">
+	        AND car.location = #{param.location}
+	    </if>
+        <if test="param.custName != null and param.custName != ''">
+	        AND cust.name LIKE CONCAT('%',#{param.custName},'%')
+	    </if>
+	    <if test="param.carNo != null and param.carNo != ''">
+		    AND car.car_no LIKE CONCAT('%',#{param.carNo},'%')
+		</if>
+	    <if test="param.billTimeStart != null and param.billTimeStart != ''">
+	        <![CDATA[ AND detail.bill_time >= #{param.billTimeStart} ]]>
+	    </if>
+	    <if test="param.billTimeEnd != null and param.billTimeEnd != ''">
+	       <![CDATA[ AND detail.bill_time <= #{param.billTimeEnd} ]]> 
+	    </if>
+        
+	    GROUP BY car.id,car.car_no
+	    ORDER BY detail.bill_time DESC
+	</select>
+	
+	<select id="queryPaymentDetail4PaymentDaily" resultType="hashmap" parameterType="Map">
+	    SELECT COUNT(detail.id) AS count,
+	    	   MIN(detail.bill_time) AS minBillTime,
+               MAX(detail.bill_time) AS maxBillTime
+        FROM bi_car_info car 
+		INNER JOIN bi_payment pay ON pay.car_id = car.id
+		INNER JOIN bi_payment_detail detail ON pay.id = detail.pay_id
+		WHERE 1=1
+		AND (detail.daily_date IS NULL OR detail.daily_date = '')
+		<if test="param.location != null and param.location != ''">
+	        AND car.location = #{param.location}
+	    </if>
+	    <if test="param.billTimeStart != null and param.billTimeStart != ''">
+	        <![CDATA[ AND detail.bill_time >= #{param.billTimeStart} ]]>
+	    </if>
+	    <if test="param.billTimeEnd != null and param.billTimeEnd != ''">
+	       <![CDATA[ AND detail.bill_time <= #{param.billTimeEnd} ]]> 
+	    </if>
+	</select>
+	
+	<select id="queryPaymentDailyHistory" resultType="hashmap" parameterType="Map">
+	    SELECT pd.id AS id,
+       		   pd.location AS location,
+               d.name AS locationName,
+               pd.daily_date AS dailyDate,
+               pd.date_start AS dateStart,
+               pd.date_end AS dateEnd,
+       		   pd.create_user AS createUser,
+       		   cu.name AS createUserName,
+       		   pd.update_user AS updateUser,
+       		   uu.name AS updateUserName,
+       		   pd.create_time AS createTime,
+       		   pd.update_time AS updateTime
+		FROM bi_payment_daily pd
+		LEFT JOIN user cu ON cu.login_name = pd.create_user
+		LEFT JOIN user uu ON uu.login_name = pd.update_user
+		LEFT JOIN bi_dictionary d ON d.code = pd.location
+		WHERE 1 = 1
+		<if test="param.location != null and param.location != ''">
+	        AND pd.location = #{param.location}
+	    </if>
+		<if test="param.dailyDate != null and param.dailyDate != ''">
+	        AND pd.daily_date = #{param.dailyDate}
+	    </if>
+		ORDER BY pd.daily_date DESC
+	</select>
+	
+	<update id="updatePaymentDetailDailyDate" parameterType="Map">
+	    UPDATE bi_car_info car,bi_payment pay,bi_payment_detail detail 
+	    SET detail.daily_date = #{param.dailyDate}
+	    WHERE 1 = 1
+	    AND car.id = pay.car_id
+	    AND pay.id = detail.pay_id
+	    AND (detail.daily_date IS NULL OR detail.daily_date = '')
+	    <if test="param.location != null and param.location != ''">
+	        AND car.location = #{param.location}
+	    </if>
+	    <if test="param.billTimeStart != null and param.billTimeStart != ''">
+	        <![CDATA[ AND detail.bill_time >= #{param.billTimeStart} ]]>
+	    </if>
+	    <if test="param.billTimeEnd != null and param.billTimeEnd != ''">
+	       <![CDATA[ AND detail.bill_time <= #{param.billTimeEnd} ]]> 
+	    </if>
+	</update>
+</mapper>

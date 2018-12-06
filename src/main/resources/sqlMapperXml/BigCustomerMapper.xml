@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zw.bms.mapper.BigCustomerMapper">
+
+	<!-- 通用查询映射结果 -->
+	<resultMap id="BaseResultMap" type="com.zw.bms.model.BigCustomer">
+		<id column="id" property="id" />
+		<result column="name" property="name" />
+		<result column="seq" property="seq" />
+		<result column="telephone" property="telephone" />
+		<result column="address" property="address" />
+		<result column="is_credit" property="isCredit" />
+		<result column="status" property="status" />
+		<result column="remark" property="remark" />
+		<result column="create_user" property="createUser" />
+		<result column="create_time" property="createTime" />
+		<result column="update_user" property="updateUser" />
+		<result column="update_time" property="updateTime" />
+	</resultMap>
+	
+	<resultMap id="SelectResultMap" type="com.zw.bms.model.BigCustomer" extends="BaseResultMap">
+	    <result column="itemId" property="itemId" />
+	    <result column="itemName" property="itemName" />
+	    <result column="itemPrice" property="itemPrice" />
+	    <result column="createUserName" property="createUserName" />
+	    <result column="updateUserName" property="updateUserName" />
+	</resultMap>
+	
+	<select id="selectBigCustomerList" resultMap="SelectResultMap">
+	    SELECT bc.*
+	    FROM bi_big_customer bc
+	    WHERE 1=1
+	    AND bc.status IN('0','1') 
+	    <if test="null != bigCustomer and bigCustomer.name != null and bigCustomer.name != '' ">
+	        AND bc.name LIKE CONCAT('%',#{bigCustomer.name},'%') 
+	    </if>
+	</select>
+	
+	<select id="getBigCustomerByChargeItem" resultMap="SelectResultMap">
+	    SELECT cust.*,
+	           item.name AS itemName,
+	           ci.price AS itemPrice
+	    FROM bi_charge_item item 
+	    INNER JOIN bi_customer_item ci ON item.id = ci.item_id 
+	    INNER JOIN bi_big_customer cust ON cust.id = ci.customer_id
+	    WHERE 1 = 1
+	    AND cust.status = '0'
+	    AND ci.status = '0'
+	    AND item.status = '0'
+	    AND cust.id = #{id}
+	    AND item.id IN 
+	    <foreach collection="items" index="index" item="item" open="(" separator="," close=")">
+	        #{item.id}
+	    </foreach>
+	</select>
+
+</mapper>

@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zw.bms.mapper.StoreStatementMapper">
+
+	<!-- 通用查询映射结果 -->
+	<resultMap id="BaseResultMap" type="com.zw.bms.model.StoreStatement">
+		<id column="id" property="id" />
+		<result column="car_id" property="carId" />
+		<result column="car_no" property="carNo" />
+		<result column="card_no" property="cardNo" />
+		<result column="location" property="location" />
+		<result column="customer_id" property="customerId" />
+		<result column="busi_date" property="busiDate" />
+		<result column="out_stock_no" property="outStockNo" />
+		<result column="type" property="type" />
+		<result column="remark" property="remark" />
+		<result column="create_user" property="createUser" />
+		<result column="create_time" property="createTime" />
+		<result column="update_user" property="updateUser" />
+		<result column="update_time" property="updateTime" />
+	</resultMap>
+	
+	
+	<select id="getStoreManageList" resultType="hashmap" parameterType="Map">
+	    SELECT * FROM(
+	    	SELECT 	car.id AS car_id,
+	    	       	car.car_no,
+       				car.card_no,
+       				car.location,
+       				car.customer_id,
+       				cust.name AS customer_name,
+       				car.in_time,
+       				car.out_time,
+       				car.car_status,
+       				MAX(IF(st.type = '2',sd.statement_id,NULL)) AS in_st_id,
+       				MAX(IF(st.type = '2',sd.busi_date,NULL)) AS goods_in_time,
+       				SUM(IF(st.type = '2',sd.net_weight,0)) AS goods_in_net,
+       				SUM(IF(st.type = '2',sd.amount,0)) AS goods_in_amount,
+       				MAX(IF(st.type = '1',sd.statement_id,NULL)) AS out_st_id,
+       				MAX(IF(st.type = '1',sd.busi_date,NULL)) AS goods_out_time,
+       				SUM(IF(st.type = '1',sd.net_weight,0)) AS goods_out_net,
+       				SUM(IF(st.type = '1',sd.amount,0)) AS goods_out_amount,
+       				COUNT(sd.id) AS count
+       		FROM  bi_car_info car
+			LEFT JOIN bi_big_customer cust ON car.customer_id = cust.id 
+			LEFT JOIN bi_store_statement st ON st.car_id = car.id
+			LEFT JOIN bi_store_detail sd ON sd.statement_id = st.id
+			WHERE car.car_status != '2'
+			GROUP BY car.id
+	    
+	    	UNION 
+	    	
+	    	SELECT 	null AS car_id,
+       				null AS car_no,
+       				null AS card_no,
+       				st.location AS location,
+       				cust.id AS customer_id,
+       				cust.name AS customer_name,
+       				NULL AS in_time,
+       				NULL AS out_time,
+       				NULL AS car_status,
+       				MAX(IF(st.type = '2',sd.statement_id,NULL)) AS in_st_id,
+       				MAX(IF(st.type = '2',sd.busi_date,NULL)) AS goods_in_time,
+       				SUM(IF(st.type = '2',sd.net_weight,0)) AS goods_in_net,
+       				SUM(IF(st.type = '2',sd.amount,0)) AS goods_in_amount,
+       				MAX(IF(st.type = '1',sd.statement_id,NULL)) AS out_st_id,
+       				MAX(IF(st.type = '1',sd.busi_date,NULL)) AS goods_out_time,
+       				SUM(IF(st.type = '1',sd.net_weight,0)) AS goods_out_net,
+       				SUM(IF(st.type = '1',sd.amount,0)) AS goods_out_amount,
+       				COUNT(sd.id) AS count
+			FROM bi_store_statement st 
+			INNER JOIN bi_store_detail sd ON sd.statement_id = st.id
+			LEFT JOIN bi_big_customer cust ON st.customer_id = cust.id
+			WHERE 1 = 1
+			AND st.car_id IS NULL 
+			GROUP BY st.id
+	    )store
+	 	WHERE 1 = 1
+	 	<!-- 车牌号 -->
+	    <if test="param.carNo != null and param.carNo != ''">
+	        AND store.car_no LIKE CONCAT('%',#{param.carNo},'%')
+	    </if>
+	    <!-- 运通卡号 -->
+	    <if test="param.cardNo != null and param.cardNo != ''">
+	        AND store.card_no = #{param.cardNo}
+	    </if>
+	    <!-- 所属区域 -->
+	     <if test="param.location != null and param.location != ''">
+	        AND store.location = #{param.location}
+	    </if>
+	     <if test="param.carStatus != null and param.carStatus != ''">
+	        AND store.car_status = #{param.carStatus}
+	    </if>
+	    <!-- 货物入库日期 -->
+	    <if test="param.goodsInTimeStart != null and param.goodsInTimeStart != ''">
+	        <![CDATA[ AND store.goods_in_time >= #{param.goodsInTimeStart} ]]>
+	    </if>
+	    <if test="param.goodsInTimeEnd != null and param.goodsInTimeEnd != ''">
+	        <![CDATA[ AND store.goods_in_time < #{param.goodsInTimeEnd} ]]>
+	    </if>
+	    <!-- 货物出库日期 -->
+	    <if test="param.goodsOutTimeStart != null and param.goodsOutTimeStart != ''">
+	        <![CDATA[ AND store.goods_out_time >= #{param.goodsOutTimeStart} ]]>
+	    </if>
+	    <if test="param.goodsOutTimeEnd != null and param.goodsOutTimeEnd != ''">
+	        <![CDATA[ AND store.goods_out_time < #{param.goodsOutTimeEnd} ]]>
+	    </if>
+	    <!-- 车辆入库日期 -->
+	    <if test="param.inTimeStart != null and param.inTimeStart != ''">
+	        <![CDATA[ AND store.in_time >= #{param.inTimeStart} ]]>
+	    </if>
+	     <if test="param.inTimeEnd != null and param.inTimeEnd != ''">
+	        <![CDATA[ AND store.in_time < #{param.inTimeEnd} ]]>
+	    </if>
+	    <!-- 车辆出库日期 -->
+	    <if test="param.outTimeStart != null and param.outTimeStart != ''">
+	        <![CDATA[ AND store.out_time >= #{param.outTimeStart} ]]>
+	    </if>
+	    <if test="param.outTimeEnd != null and param.outTimeEnd != ''">
+	        <![CDATA[ AND store.out_time < #{param.outTimeEnd} ]]>
+	    </if>
+	     
+		ORDER BY store.goods_in_time DESC,store.goods_out_time DESC,store.car_id DESC
+	</select>
+
+</mapper>

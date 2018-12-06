@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zw.bms.mapper.ImportRcjlMapper">
+
+	<!-- 通用查询映射结果 -->
+	<resultMap id="BaseResultMap" type="com.zw.bms.model.ImportRcjl">
+		<id column="id" property="id" />
+		<id column="create_time" property="createTime" />
+		<id column="create_user" property="createUser" />
+		<id column="file_id" property="fileId" />
+		<result column="rcid" property="rcid" />
+		<result column="zt" property="zt" />
+		<result column="ckmc" property="ckmc" />
+		<result column="ch" property="ch" />
+		<result column="czts" property="czts" />
+		<result column="kadbm" property="kadbm" />
+		<result column="ckbm" property="ckbm" />
+		<result column="ckbzxx" property="ckbzxx" />
+		<result column="rcsj" property="rcsj" />
+		<result column="tdbh" property="tdbh" />
+		<result column="tdlx" property="tdlx" />
+		<result column="kh" property="kh" />
+		<result column="ytklx" property="ytklx" />
+		<result column="cllx" property="cllx" />
+		<result column="ssch" property="ssch" />
+		<result column="zpch" property="zpch" />
+		<result column="tglx" property="tglx" />
+		<result column="clbazl" property="clbazl" />
+		<result column="dbcjzl" property="dbcjzl" />
+		<result column="hwjz" property="hwjz" />
+		<result column="gpsbh" property="gpsbh" />
+		<result column="dzsbh1" property="dzsbh1" />
+		<result column="dzsbh2" property="dzsbh2" />
+		<result column="dzcp1" property="dzcp1" />
+		<result column="dzcp2" property="dzcp2" />
+		<result column="lrr" property="lrr" />
+		<result column="czdnm" property="czdnm" />
+		<result column="czdnip" property="czdnip" />
+		<result column="jhbz" property="jhbz" />
+		<result column="bz" property="bz" />
+	</resultMap>
+	
+	<select id="selectRcDataList" resultType="hashmap" parameterType="Map">
+	    SELECT rc.*,
+	           u.name AS user_name
+	    FROM bi_import_rcjl rc
+	    LEFT JOIN user u ON rc.create_user = u.login_name
+	    WHERE 1 = 1
+	    <if test="param.carNo != null and param.carNo != ''">
+	        AND rc.ch  LIKE CONCAT('%',#{param.carNo},'%')
+	    </if>
+	    <if test="param.location != null and param.location == 'SQ'">
+	        AND rc.ckmc = '森桥'
+	    </if>
+	    <if test="param.location != null and param.location == 'FD'">
+	        AND rc.ckmc = '卡森'
+	    </if>
+	    <if test="param.dateStart != null and param.dateStart != ''">
+	        <![CDATA[ AND rc.rcsj >= #{param.dateStart} ]]>
+	    </if>
+	    <if test="param.dateEnd != null and param.dateEnd != ''">
+	       <![CDATA[ AND rc.rcsj < #{param.dateEnd} ]]> 
+	    </if>
+	    ORDER BY rc.rcsj DESC
+	</select>
+
+</mapper>

@@ -1,0 +1,481 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zw.bms.mapper.ReportQueryMapper">
+
+    <!-- 车辆信息查询报表及导出 -->
+	<select id="queryCarInfoReport" resultType="hashmap" parameterType="Map">
+	    SELECT car.id,
+       		   car.card_no AS cardNo,
+       	       CASE car.is_year_card WHEN  '0' THEN '是' WHEN '1' THEN '否' END AS isYearCard,
+       		   car.car_no AS carNo,
+               cust.name AS customerName,
+               CASE car.car_status WHEN  '0' THEN '已入库' WHEN '1' THEN '已出库' END AS carStatus,
+               type.name AS chargeTypeName,
+               inuser.name AS inUserName,
+               car.in_user AS inUserLoginName,
+               car.in_time AS inTime,
+               outuser.name AS outUserName,
+               car.out_user AS outUserLoginName,
+               car.out_time AS outTime,
+               pay.bill_time AS billTime,
+               lx.name AS paymentMode,
+               pay.amount,
+               pay.bill_time AS billTime
+		FROM bi_car_info car
+		LEFT JOIN bi_payment pay ON car.id = pay.car_id
+		LEFT JOIN bi_big_customer cust ON cust.id = car.customer_id
+		LEFT JOIN bi_charge_type type ON type.id = car.charge_type
+		LEFT JOIN user inuser ON inuser.login_name = car.in_user 
+		LEFT JOIN user outuser ON outuser.login_name = car.out_user
+		LEFT JOIN bi_dictionary lx ON lx.code = car.payment_mode
+		WHERE 1 = 1
+		AND car.car_status != '2'
+		<if test="param.carNo != null and param.carNo != ''">
+		    AND car.car_no LIKE CONCAT('%',#{param.carNo},'%')
+		</if>
+		<if test="param.carStatus != null and param.carStatus != ''">
+		    AND car.car_status = #{param.carStatus}
+		</if>
+		<if test="param.inTimeStart != null and param.inTimeStart != ''">
+		    <![CDATA[ AND car.in_time >= #{param.inTimeStart} ]]> 
+		</if>
+		<if test="param.inTimeEnd != null and param.inTimeEnd != ''">
+		   <![CDATA[ AND car.in_time < #{param.inTimeEnd} ]]>
+		</if>
+		<if test="param.outTimeStart != null and param.outTimeStart != ''">
+		    <![CDATA[ AND car.out_time >= #{param.outTimeStart} ]]>
+		</if>
+		<if test="param.outTimeEnd != null and param.outTimeEnd != ''">
+		    <![CDATA[ AND car.out_time  < #{param.outTimeEnd} ]]>
+		</if>
+	</select>
+	
+	<!-- 账户信息汇总 -->
+	<select id="queryCustAccountReport" resultType="hashmap" parameterType="Map">
+	    SELECT cust.id AS custId,
+	           cust.name AS custName,
+	           <![CDATA[ SUM(IF(d.status != '9',ABS(d.amount),0)) AS total, ]]>
+	           <![CDATA[ SUM(IF(d.payment_mode = '2',ABS(d.amount),0)) AS nonpay, ]]>
+	           <![CDATA[ SUM(IF(d.amount > 0,ABS(d.amount),0)) AS payed, ]]>
+	           SUM(d.amount) AS subtotal
+	    FROM  bi_account_detail d
+	    LEFT JOIN bi_big_customer cust ON d.customer_id = cust.id
+	    WHERE 1 = 1
+	    AND d.status  = '0'
+	    <if test="param.recordTimeStart != null and param.recordTimeStart != ''">
+	        <![CDATA[ AND d.record_time  >= #{param.recordTimeStart} ]]>
+	    </if>
+	    <if test="param.recordTimeEnd != null and param.recordTimeEnd != ''">
+	        <![CDATA[ AND d.record_time < #{param.recordTimeEnd} ]]>
+	    </if>
+	    <if test="param.custName != null and param.custName != ''">
+	        AND cust.name LIKE CONCAT('%',#{param.custName},'%')
+	    </if>
+	    
+	    GROUP BY d.customer_id
+	    
+	</select>
+	
+	<select id="queryCustAccountDetailReport" resultType="hashmap" parameterType="Map">
+	    SELECT ad.*,
+	           cust.name AS custName,
+	           di.name AS paymentMode,
+	           u.name AS createUserName
+	    FROM bi_account_detail ad 
+	    LEFT JOIN bi_big_customer cust ON ad.customer_id = cust.id
+	    LEFT JOIN bi_dictionary di ON di.code = ad.payment_mode
+	    LEFT JOIN user u ON u.login_name = ad.create_user
+	    WHERE ad.status = 0
+	    
+	    <if test="param.recordTimeStart != null and param.recordTimeStart != ''">
+	        <![CDATA[ AND ad.record_time >= #{param.recordTimeStart} ]]>
+	    </if>
+	    <if test="param.recordTimeEnd != null and param.recordTimeEnd != ''">
+	       <![CDATA[ AND ad.record_time < #{param.recordTimeEnd} ]]>
+	    </if>
+	    <if test="param.custId != null and param.custId != ''">
+	        AND ad.customer_id = #{param.custId}
+	    </if>
+	    <if test="param.custId == null or param.custId == ''">
+	        AND ad.customer_id IS null
+	    </if>
+	</select>
+	
+	<!-- 森桥日报表 -->
+	<select id="queryDailyReport4SqList" resultType="hashmap" parameterType="Map">
+	    SELECT car.id AS carId,
+	           car.car_no AS carNo,
+	           detail.daily_date AS dailyDate,
+	           car.goods_store_no AS goodsStoreNo,
+	           cust.name AS custName,
+	           IFNULL(type.name,type2.name) AS chargeTypeName,
+	           hw.name AS goodsName,
+	           car.park_days AS parkDays,
+	           car.stock_days AS stockDays,
+	           car.out_stock_no AS outStockNo,
+	           IFNULL(u.login_name,u2.login_name) AS loginName,
+               IFNULL(u.name,u2.name) AS userName,
+               car.out_remark AS outRemark,
+	           lx.name AS paymentMode,
+	           IF(car.net_weight > 0,car.net_weight,0) AS netWeight,
+               SUM(detail.amount) sumAmount,
+               SUM(IF(item.type = 'CCFY',detail.amount,0)) AS ccfAmount,
+               SUM(IF(item.type = 'CCFY' AND detail.payment_mode = '2',detail.amount,0)) AS ccfAmount_yj,
+               SUM(IF(item.type = 'CCFY' AND detail.payment_mode != '2',detail.amount,0)) AS ccfAmount_ss,
+               SUM(IF(item.type = 'WSFY',detail.amount,0)) AS wsfAmount,
+               SUM(IF(item.type = 'GLFY',detail.amount,0)) AS glfAmount,
+               SUM(IF(item.type = 'TCFY',detail.amount,0)) AS tcfAmount,
+               SUM(IF(item.type = 'TCFY' AND detail.payment_mode = '2',detail.amount,0)) AS tcfAmount_yj,
+               SUM(IF(item.type = 'TCFY' AND detail.payment_mode != '2',detail.amount,0)) AS tcfAmount_ss,
+               SUM(IF(item.type = 'DHFY',detail.amount,0)) AS dhfAmount,
+               SUM(IF(item.type = 'YDFY',detail.amount,0)) AS ydfAmount,
+               SUM(IF(item.type = 'ZXFY',detail.amount,0)) AS zxfAmount,
+               SUM(IF(item.type = 'ZGFY',detail.amount,0)) AS zgfAmount,
+               SUM(IF(item.type = 'ZGFY' AND detail.payment_mode = '2',detail.amount,0)) AS zgfAmount_yj,
+               SUM(IF(item.type = 'ZGFY' AND detail.payment_mode != '2',detail.amount,0)) AS zgfAmount_ss,
+               SUM(IF(item.type = 'KHYHFY',detail.amount,0)) AS khyhfAmount,
+               SUM(IF(item.type = 'QTFY',detail.amount,0)) AS qtfAmount,
+               SUM(IF(detail.payment_mode = '1',detail.amount,0)) AS cashAmount,
+               <![CDATA[ SUM(IF(detail.payment_mode != '2',detail.amount,0)) AS payedAmount, ]]>
+               <![CDATA[ SUM(IF(detail.payment_mode = '2',detail.amount,0)) AS nonPayAmount ]]>
+        FROM bi_car_info car
+        INNER JOIN bi_payment pay ON pay.car_id = car.id
+        INNER JOIN bi_payment_detail detail ON pay.id = detail.pay_id
+        INNER JOIN bi_charge_item item ON item.id = detail.item_id
+        LEFT JOIN bi_charge_type type ON car.charge_type = type.id
+        LEFT JOIN bi_charge_type type2 ON pay.charge_type_id = type2.id
+        LEFT JOIN bi_dictionary hw ON hw.id = car.goods_name
+        LEFT JOIN bi_big_customer cust ON cust.id = car.customer_id 
+        LEFT JOIN user u ON u.login_name = car.out_user
+        LEFT JOIN user u2 ON u2.login_name = pay.update_user
+        LEFT JOIN bi_dictionary lx ON lx.code = car.payment_mode
+	    WHERE 1 = 1 
+	    <!-- AND car.car_status = '1' -->
+	    AND car.location = 'SQ'    <!-- 只汇总森桥的业务-->
+	    AND detail.daily_date IS NOT NULL 
+	    <![CDATA[ AND detail.daily_date != '' ]]>
+	    <if test="param.custName != null and param.custName != ''">
+	        AND cust.name LIKE CONCAT('%',#{param.custName},'%')
+	    </if>
+	    <if test="param.carNo != null and param.carNo != ''">
+		    AND car.car_no LIKE CONCAT('%',#{param.carNo},'%')
+		</if>
+	    <if test="param.dailyDateStart != null and param.dailyDateStart != ''">
+	        <![CDATA[ AND detail.daily_date >= #{param.dailyDateStart} ]]>
+	    </if>
+	    <if test="param.dailyDateEnd != null and param.dailyDateEnd != ''">
+	       <![CDATA[ AND detail.daily_date < #{param.dailyDateEnd} ]]> 
+	    </if>
+	    
+	    GROUP BY car.id,car.car_no
+	    ORDER BY detail.bill_time DESC
+	</select>
+	
+	<!-- 福地日报表 -->
+	<select id="queryDailyReport4FdList" resultType="hashmap" parameterType="Map">
+	    SELECT date_format(car.in_time,'%Y-%m-%d') AS inTime,
+	           inCar.id AS inCarId,
+	           inCar.car_no AS inCarNo,
+	           inCar.car_status AS inCarStatus,
+	           car.contract_no AS contractNo,
+	           car.waybill_no AS waybillNo,
+	           hw.name AS goodsName,
+	           car.goods_quantity AS goodsQuantity,
+               car.net_weight AS netWeight,
+               car.goods_store_no AS goodsStoreNo,
+               car.id AS outCarId,
+               car.car_no AS outCarNo,
+               car.car_status AS outCarStatus,
+               detail.daily_date AS dailyDate,
+               cust.name AS custName,
+               IFNULL(u.login_name,u2.login_name) AS loginName,
+               IFNULL(u.name,u2.name) AS userName,
+               lx.name AS paymentMode,
+               SUM(detail.amount) sumAmount,
+               SUM(IF(item.type = 'CCFY',detail.amount,0)) AS ccfAmount,
+               SUM(IF(item.type = 'KHYHFY',detail.amount,0)) AS khyhfAmount,
+	           SUM(IF(item.type = 'QTFY',detail.amount,0)) AS qtfAmount,
+	           SUM(IF(detail.payment_mode = '1',detail.amount,0)) AS cashAmount,
+               <![CDATA[ SUM(IF(detail.payment_mode != '2',detail.amount,0)) AS payedAmount,]]>
+               SUM(IF(detail.payment_mode = '2',detail.amount,0)) AS nonPayAmount
+        FROM bi_car_info car
+        LEFT JOIN bi_car_info inCar ON car.goods_in_car_id = inCar.id 
+        INNER JOIN bi_payment pay ON pay.car_id = car.id
+        LEFT JOIN bi_payment_detail detail ON pay.id = detail.pay_id
+        LEFT JOIN bi_charge_item item ON item.id = detail.item_id
+        LEFT JOIN bi_charge_type type ON car.charge_type = type.id
+        LEFT JOIN bi_dictionary hw ON hw.id = car.goods_name
+        LEFT JOIN bi_big_customer cust ON cust.id = car.customer_id 
+        LEFT JOIN user u ON u.login_name = car.out_user
+        LEFT JOIN user u2 ON u2.login_name = pay.update_user
+        LEFT JOIN bi_dictionary lx ON lx.code = car.payment_mode
+	    WHERE 1 = 1 
+	    <!-- AND car.car_status = '1' --> 
+	    AND car.location = 'FD'    <!-- 只汇总福地的业务-->
+	    <if test="param.custName != null and param.custName != ''">
+	        AND cust.name LIKE CONCAT('%',#{param.custName},'%')
+	    </if>
+	    <if test="param.dailyDateStart != null and param.dailyDateStart != ''">
+	        <![CDATA[ AND detail.daily_date >= #{param.dailyDateStart} ]]>
+	    </if>
+	    <if test="param.dailyDateEnd != null and param.dailyDateEnd != ''">
+	       <![CDATA[ AND detail.daily_date < #{param.dailyDateEnd} ]]> 
+	    </if>
+	    
+	    GROUP BY car.id,car.car_no
+	    ORDER BY detail.bill_time DESC
+	</select>
+	
+	<!-- 森桥月报表 -->
+	<select id="queryMonthlyReport4SqList" resultType="hashmap" parameterType="Map">
+	    SELECT detail.daily_date AS dailyDate,
+	           SUM(detail.amount) sumAmount,
+	           SUM(IF(item.type = 'CCFY',detail.amount,0)) AS ccfAmount,
+	           SUM(IF(item.type = 'WSFY',detail.amount,0)) AS wsfAmount,
+	           SUM(IF(item.type = 'GLFY',detail.amount,0)) AS glfAmount,
+	           SUM(IF(item.type = 'TCFY',detail.amount,0)) AS tcfAmount,
+	           SUM(IF(item.type = 'DHFY',detail.amount,0)) AS dhfAmount,
+	           SUM(IF(item.type = 'YDFY',detail.amount,0)) AS ydfAmount,
+	           SUM(IF(item.type = 'ZXFY',detail.amount,0)) AS zxfAmount,
+	           SUM(IF(item.type = 'ZGFY',detail.amount,0)) AS zgfAmount,
+	           SUM(IF(item.type = 'KHYHFY',detail.amount,0)) AS khyhfAmount,
+	           SUM(IF(item.type = 'QTFY',detail.amount,0)) AS qtfAmount,
+	           SUM(IF(detail.payment_mode = '1',detail.amount,0)) AS cashAmount,
+	           <![CDATA[ SUM(IF(detail.payment_mode != '2',detail.amount,0))   AS payedAmount, ]]>
+	           SUM(IF(detail.payment_mode = '2',detail.amount,0)) AS nonPayAmount,
+	           SUM(if(car.location = 'SQ',detail.amount,0)) AS sqAmount,
+	           SUM(if(car.location = 'FD',detail.amount,0)) AS fdAmount
+	    FROM bi_car_info car
+	    INNER JOIN bi_payment pay ON pay.car_id = car.id
+	    INNER JOIN bi_payment_detail detail ON pay.id = detail.pay_id
+	    INNER JOIN bi_charge_item item ON item.id = detail.item_id
+	    LEFT JOIN bi_big_customer cust ON cust.id = car.customer_id 
+	    WHERE 1 = 1 
+	    <!-- AND car.car_status = '1' -->
+	    <if test="param.location != null and param.location != ''">
+	        AND car.location = #{param.location}
+	    </if>
+	    <if test="param.custName != null and param.custName != ''">
+	        AND cust.name LIKE CONCAT('%',#{param.custName},'%')
+	    </if>
+	    <if test="param.dailyDateStart != null and param.dailyDateStart != ''">
+	        <![CDATA[ AND detail.daily_date >= #{param.dailyDateStart} ]]>
+	    </if>
+	    <if test="param.dailyDateEnd != null and param.dailyDateEnd != ''">
+	       <![CDATA[ AND detail.daily_date < #{param.dailyDateEnd} ]]> 
+	    </if>
+	    GROUP BY detail.daily_date
+	    ORDER BY detail.daily_date
+	</select>
+	
+	<!-- 森桥年报表 -->
+	<select id="queryYearReport4SqList" resultType="hashmap" parameterType="Map">
+	    SELECT  date_format(detail.daily_date,'%Y-%m') AS dailyDate,
+	            SUM(detail.amount) sumAmount,
+	            SUM(IF(item.type = 'CCFY',detail.amount,0)) AS ccfAmount,
+                SUM(IF(item.type = 'WSFY',detail.amount,0)) AS wsfAmount,
+                SUM(IF(item.type = 'GLFY',detail.amount,0)) AS glfAmount,
+                SUM(IF(item.type = 'TCFY',detail.amount,0)) AS tcfAmount,
+                SUM(IF(item.type = 'DHFY',detail.amount,0)) AS dhfAmount,
+                SUM(IF(item.type = 'YDFY',detail.amount,0)) AS ydfAmount,
+                SUM(IF(item.type = 'ZXFY',detail.amount,0)) AS zxfAmount,
+                SUM(IF(item.type = 'ZGFY',detail.amount,0)) AS zgfAmount,
+                SUM(IF(item.type = 'KHYHFY',detail.amount,0)) AS khyhfAmount,
+                SUM(IF(item.type = 'QTFY',detail.amount,0)) AS qtfAmount,
+                SUM(IF(detail.payment_mode = '1',detail.amount,0)) AS cashAmount,
+                <![CDATA[ SUM(IF(detail.payment_mode != '2',detail.amount,0)) AS payedAmount, ]]>
+                SUM(IF(detail.payment_mode = '2',detail.amount,0)) AS nonPayAmount,
+                SUM(if(car.location = 'SQ',detail.amount,0)) AS sqAmount,
+             	SUM(if(car.location = 'FD',detail.amount,0)) AS fdAmount
+	    FROM bi_car_info car
+	    INNER JOIN bi_payment pay ON pay.car_id = car.id
+	    INNER JOIN bi_payment_detail detail ON pay.id = detail.pay_id
+	    INNER JOIN bi_charge_item item ON item.id = detail.item_id
+	    LEFT JOIN bi_big_customer cust ON cust.id = car.customer_id 
+	    WHERE 1 = 1 
+	    <!-- AND car.car_status = '1' -->
+	    <if test="param.location != null and param.location != ''">
+	        AND car.location = #{param.location}
+	    </if>
+	    <if test="param.custName != null and param.custName != ''">
+	        AND cust.name LIKE CONCAT('%',#{param.custName},'%')
+	    </if>
+	    <if test="param.dailyDateStart != null and param.dailyDateStart != ''">
+	        <![CDATA[ AND date_format(detail.daily_date,'%Y') >= #{param.dailyDateStart} ]]>
+	    </if>
+	    <if test="param.dailyDateEnd != null and param.dailyDateEnd != ''">
+	       <![CDATA[ AND date_format(detail.daily_date,'%Y') <= #{param.dailyDateEnd} ]]> 
+	    </if>
+	    
+	    GROUP BY date_format(detail.daily_date,'%Y-%m')
+	    ORDER BY detail.daily_date 
+	</select>
+	
+	
+	<!-- 客户回款进度报表 -->
+	<select id="queryCustomerReturnMoneyList" resultType="hashmap" parameterType="Map">
+	    SELECT 	detail.payId,
+	    		detail.customer_id AS customerId,
+	    		cust.name AS customerName,
+	            IFNULL(detail.nonPayAmount,0) AS nonPayAmount,
+	            IFNULL(adetail.backAmount,0) AS backAmount,
+	            IFNULL(adetail.overAmount,0) AS overAmount,
+       			IFNULL(detail.nonPayAmount,0) - IFNULL(adetail.backAmount,0) AS balanceAmount,
+       			'${param.lastDate}' AS lastDate,
+       			'${param.paymentMonth}' AS paymentMonth,
+       			DATEDIFF('${param.lastDate}',NOW()) AS leftDays
+	    FROM 
+	    (
+	    	SELECT 	pay.id AS payId,
+	    			pay.customer_id,
+			 		SUM(IF(pd.payment_mode = '2',pd.amount,0)) AS nonPayAmount
+			FROM bi_payment pay
+			INNER JOIN bi_payment_detail pd ON pay.id = pd.pay_id 
+			WHERE 1 = 1
+			AND pay.customer_id IS NOT NULL 
+			<![CDATA[ AND pay.customer_id <> '' ]]>
+			<![CDATA[ AND pd.daily_date >= #{param.dateStart} ]]>
+			<![CDATA[ AND pd.daily_date <= #{param.dateEnd} ]]>
+			GROUP BY pay.customer_id
+	    ) AS detail 
+	    LEFT JOIN
+	    (
+	    	SELECT 	ad.customer_id,
+       				SUM(ad.amount) AS backAmount,
+       				SUM(IF(ad.record_time > #{param.lastDate},ad.amount,0)) AS overAmount
+			FROM bi_account_detail ad
+			WHERE 1 = 1
+			AND ad.customer_id IS NOT NULL
+			<![CDATA[ AND ad.customer_id <> '' ]]>
+			AND ad.payment_type = '2'
+			AND ad.payment_month = #{param.paymentMonth}
+			GROUP BY ad.customer_id
+		) AS adetail ON detail.customer_id = adetail.customer_id
+		
+	    LEFT JOIN bi_big_customer cust ON cust.id = detail.customer_id
+	    
+	    WHERE 1 = 1 
+	    AND detail.nonPayAmount > 0 
+	    <if test="param.custName != null and param.custName != ''">
+	        AND cust.name LIKE CONCAT('%',#{param.custName},'%')
+	    </if>
+	   ORDER BY detail.customer_id
+	</select>
+	
+	<!-- 货物出入库报表 -->
+	<select id="queryDailyReport4StoreDetailList" resultType="hashmap" parameterType="Map">
+	    SELECT sd.car_no AS carNo,
+	    	   car.card_no AS cardNo,
+               cust.name AS custName,
+       		   car.in_time AS inTime,
+       		   car.out_time AS outTime,
+       		   store.name AS storeName,
+	           CASE sd.type WHEN  '1' THEN '货物出库' WHEN '2' THEN '货物入库' END AS type,
+       		   date_format(sd.busi_date,'%Y-%m-%d') AS busiDate,
+       		   SUM(sd.net_weight) AS sumNet,
+       		   SUM(sd.amount) AS sumAmount,
+       		   GROUP_CONCAT(DISTINCT sd.goods_name) AS goodsName,
+       		   u.name AS userName
+       	FROM bi_store_detail sd 
+		INNER JOIN bi_store_statement st ON sd.statement_id = st.id
+		LEFT JOIN bi_store_info store ON store.id = sd.store_id
+		LEFT JOIN bi_big_customer cust ON cust.id = sd.customer_id
+		LEFT JOIN bi_car_info car ON car.id = sd.car_id
+		LEFT JOIN user u ON sd.update_user = u.login_name
+	    WHERE 1 = 1 
+	    <!-- 客户名称 -->
+	    <if test="param.custName != null and param.custName != ''">
+	        AND cust.name LIKE CONCAT('%',#{param.custName},'%')
+	    </if>
+	    <!-- 车牌号 -->
+	    <if test="param.carNo != null and param.carNo != ''">
+		    AND car.car_no LIKE CONCAT('%',#{param.carNo},'%')
+		</if>
+	    <!-- 运通卡号 -->
+	    <if test="param.cardNo != null and param.cardNo != ''">
+		    AND car.card_no = #{param.cardNo}
+		</if>
+		<!-- 所属区域 -->
+	     <if test="param.location != null and param.location != ''">
+	        AND sd.location = #{param.location}
+	    </if>
+		<!-- 类型 -->
+	     <if test="param.type != null and param.type != ''">
+	        AND sd.type = #{param.type}
+	    </if>
+	    <!-- 库房 -->
+	    <if test="param.storeId != null and param.storeId != ''">
+	        AND sd.store_id = #{param.storeId}
+	    </if>
+		<!-- 车辆入库日期 -->
+	    <if test="param.inTimeStart != null and param.inTimeStart != ''">
+	        <![CDATA[ AND car.in_time >= #{param.inTimeStart} ]]>
+	    </if>
+	    <if test="param.inTimeEnd != null and param.inTimeEnd != ''">
+	       <![CDATA[ AND car.in_time < #{param.inTimeEnd} ]]> 
+	    </if>
+		<!-- 车辆出库日期 -->
+	    <if test="param.outTimeStart != null and param.outTimeStart != ''">
+	        <![CDATA[ AND car.out_time >= #{param.outTimeStart} ]]>
+	    </if>
+	    <if test="param.outTimeEnd != null and param.outTimeEnd != ''">
+	       <![CDATA[ AND car.out_time < #{param.outTimeEnd} ]]> 
+	    </if>
+		<!-- 货物出入库日期 -->
+	    <if test="param.busiDateStart != null and param.busiDateStart != ''">
+	        <![CDATA[ AND sd.busi_date >= #{param.busiDateStart} ]]>
+	    </if>
+	    <if test="param.busiDateEnd != null and param.busiDateEnd != ''">
+	       <![CDATA[ AND sd.busi_date < #{param.busiDateEnd} ]]> 
+	    </if>
+	    
+	    GROUP BY sd.car_no,sd.type,date_format(sd.busi_date,'%Y-%m-%d')
+	    ORDER BY sd.busi_date DESC,sd.type
+	</select>
+	
+	<!-- 以客户和库房维度查询货物出入库报表 -->
+	<select id="queryDailyReport4CustomerStoreList" resultType="hashmap" parameterType="Map">
+	    SELECT store.name AS storeName,
+	    	   cust.name AS custName,
+	    	   COUNT(IF(st.type = '2',st.id,NULL)) AS inCount,
+	    	   SUM(IF(st.type = '2',sd.net_weight,0)) AS goodsInNet,
+	    	   SUM(IF(st.type = '2',sd.amount,0)) AS goodsInAmount,
+	    	   GROUP_CONCAT(DISTINCT IF(st.type = '2',sd.goods_name,NULL)) AS inGoodsName,
+	    	   COUNT(IF(st.type = '1',st.id,NULL)) AS outCount,
+	    	   SUM(IF(st.type = '1',sd.net_weight,0)) AS goodsOutNet,
+	    	   SUM(IF(st.type = '1',sd.amount,0)) AS goodsOutAmount,
+	    	   GROUP_CONCAT(DISTINCT IF(st.type = '1',sd.goods_name,NULL)) AS outGoodsName,
+	    	   COUNT(sd.id) AS count
+	    FROM  bi_store_statement st
+	    INNER JOIN bi_store_detail sd ON sd.statement_id = st.id
+	    LEFT JOIN bi_big_customer cust ON cust.id = sd.customer_id
+	    LEFT JOIN bi_store_info store ON store.id = sd.store_id
+	    WHERE 1 = 1
+	    <!-- 所属区域 -->
+	    <if test="param.location != null and param.location != ''">
+	        AND sd.location = #{param.location}
+	    </if>
+	    <!-- 类型 -->
+	    <if test="param.type != null and param.type != ''">
+	       	AND sd.type = #{param.type}
+	   	</if>
+	   	<!-- 客户名称 -->
+	    <if test="param.custName != null and param.custName != ''">
+	        AND cust.name LIKE CONCAT('%',#{param.custName},'%')
+	    </if>
+	    <!-- 库房 -->
+	    <if test="param.storeId != null and param.storeId != ''">
+	        AND sd.store_id = #{param.storeId}
+	    </if>
+	   	<!-- 货物出入库日期 -->
+	    <if test="param.busiDateStart != null and param.busiDateStart != ''">
+	        <![CDATA[ AND sd.busi_date >= #{param.busiDateStart} ]]>
+	    </if>
+	    <if test="param.busiDateEnd != null and param.busiDateEnd != ''">
+	       <![CDATA[ AND sd.busi_date < #{param.busiDateEnd} ]]> 
+	    </if>
+	    GROUP BY sd.store_id,sd.customer_id
+	    ORDER BY store.name,cust.name
+	</select>
+	
+</mapper>

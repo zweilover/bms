@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zw.bms.mapper.CarInfoMapper">
+
+	<!-- 通用查询映射结果 -->
+	<resultMap id="BaseResultMap" type="com.zw.bms.model.CarInfo">
+		<id column="id" property="id" />
+		<result column="card_no" property="cardNo" />
+		<result column="is_year_card" property="isYearCard" />
+		<result column="car_no" property="carNo" />
+		<result column="customer_id" property="customerId" />
+		<result column="charge_type" property="chargeType" />
+		<result column="in_user" property="inUser" />
+		<result column="in_time" property="inTime" />
+		<result column="in_remark" property="inRemark" />
+		<result column="out_user" property="outUser" />
+		<result column="out_time" property="outTime" />
+		<result column="out_remark" property="outRemark" />
+		<result column="goods_in_time" property="goodsInTime" />
+		<result column="goods_out_time" property="goodsOutTime" />
+		<result column="goods_name" property="goodsName" />
+		<result column="goods_quantity" property="goodsQuantity" />
+		<result column="contract_no" property="contractNo" />
+		<result column="waybill_no" property="waybillNo" />
+	    <result column="goods_store_no" property="goodsStoreNo" />
+	    <result column="goods_in_car_id" property="goodsInCarId" />
+		<result column="out_stock_no" property="outStockNo" />
+		<result column="park_days" property="parkDays" />
+		<result column="stock_days" property="stockDays" />
+		<result column="net_weight" property="netWeight" />
+		<result column="manual_netweight" property="manualNetweight" />
+		<result column="gross_weight" property="grossWeight" />
+		<result column="car_status" property="carStatus" />
+		<result column="payment_mode" property="paymentMode" />
+		<result column="create_user" property="createUser" />
+		<result column="update_user" property="updateUser" />
+		<result column="create_time" property="createTime" />
+		<result column="update_time" property="updateTime" />
+	</resultMap>
+	
+	<!-- 车辆信息查询，解决实体对象与数据库属性名不一致的问题-->
+	<resultMap id="selectResultMap" type="com.zw.bms.model.CarInfo" extends="BaseResultMap">
+	    <result column="customerName" property="customerName" />
+	    <result column="customerIsCredit" property="customerIsCredit" />
+	    <result column="locationName" property="locationName" />
+	    <result column="inUserName" property="inUserName" />
+	    <result column="outUserName" property="outUserName" />
+	    <result column="createUserName" property="createUserName" />
+	    <result column="updateUserName" property="updateUserName" />
+	    <result column="goodsInCarNo" property="goodsInCarNo" />
+	    <result column="chargeTypeName" property="chargeTypeName" />
+	    <result column="checkFlag" property="checkFlag" />
+	</resultMap>
+	
+	<!-- 查询列表 -->
+	<select id="selectCarInfoList" resultMap="selectResultMap">
+	    SELECT car.*,
+	           carIn.car_no AS goodsInCarNo,
+	           di.name AS locationName,
+	           IFNULL(inuser.name,car.in_user) AS inUserName,
+               IFNULL(outuser.name,car.out_user) AS outUserName,
+	           type.name AS chargeTypeName,
+	           cust.name AS customerName
+	    FROM bi_car_info car
+	    LEFT JOIN bi_car_info carIn ON car.goods_in_car_id = carIn.id
+	    LEFT JOIN bi_dictionary di ON di.code = car.location
+	    LEFT JOIN user inuser ON car.in_user = inuser.login_name
+		LEFT JOIN user outuser ON car.out_user = outuser.login_name
+	    LEFT JOIN bi_charge_type type ON type.id = car.charge_type
+	    LEFT JOIN bi_big_customer cust ON cust.id = car.customer_id
+	    WHERE car.car_status in('0','1')
+	    <if test="null != carInfo and carInfo.carNo != null and carInfo.carNo != '' ">
+	        AND car.car_no LIKE CONCAT('%',#{carInfo.carNo},'%')
+	    </if>    
+	    <if test="null != carInfo and carInfo.cardNo != null and carInfo.cardNo != '' ">
+	        AND car.card_no = #{carInfo.cardNo}
+	    </if>    
+	    <if test="null != carInfo and carInfo.carStatus != null and carInfo.carStatus != '' ">
+	        AND car.car_status = #{carInfo.carStatus}
+	    </if>    
+	    <if test="null != carInfo and carInfo.location != null and carInfo.location != '' ">
+	        AND car.location = #{carInfo.location}
+	    </if>
+	</select>
+	
+	<!-- 查询列表适用于出库付款选择关联车辆 -->
+	<select id="selectCarList4CarOut" resultMap="selectResultMap">
+	    SELECT car.*,
+	          <!--  carIn.car_no AS goodsInCarNo,  -->
+	           di.name AS locationName,
+	           cust.name AS customerName,
+               cust.is_credit AS customerIsCredit
+	    FROM bi_car_info car
+	    <!-- LEFT JOIN bi_car_info carIn ON car.goods_in_car_id = carIn.id -->
+	    LEFT JOIN bi_big_customer cust ON car.customer_id = cust.id
+	    LEFT JOIN bi_dictionary di ON di.code = car.location
+	    WHERE car.car_status in('0','1')
+	    AND  NOT EXISTS (SELECT 1 FROM bi_car_info c WHERE car.goods_in_car_id = c.id ) <!-- 去掉已关联的车辆 -->
+	    <if test="null != carInfo and carInfo.carNo != null and carInfo.carNo != '' ">
+	        AND car.car_no LIKE CONCAT('%',#{carInfo.carNo},'%')
+	    </if>    
+	    <if test="null != carInfo and carInfo.carStatus != null and carInfo.carStatus != '' ">
+	        AND car.car_status = #{carInfo.carStatus}
+	    </if>    
+	    <if test="null != carInfo and carInfo.location != null and carInfo.location != '' ">
+	        AND car.location = #{carInfo.location}
+	    </if>
+	</select>
+	
+	<select id="getCarInfoDetail" resultMap="selectResultMap">
+	    SELECT car.*,
+       		   cust.name AS customerName,
+       		   IFNULL(inuser.name,car.in_user) AS inUserName,
+               IFNULL(outuser.name,car.out_user) AS outUserName,
+               carIn.car_no AS goodsInCarNo 
+  		FROM bi_car_info car
+		LEFT JOIN bi_big_customer cust ON cust.id = car.customer_id
+		LEFT JOIN user inuser ON car.in_user = inuser.login_name
+		LEFT JOIN user outuser ON car.out_user = outuser.login_name
+		LEFT JOIN bi_car_info carIn ON car.goods_in_car_id = carIn.id
+		WHERE car.id = #{id}
+	</select>
+
+</mapper>

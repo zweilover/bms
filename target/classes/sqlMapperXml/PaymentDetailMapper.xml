@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zw.bms.mapper.PaymentDetailMapper">
+
+	<!-- 通用查询映射结果 -->
+	<resultMap id="BaseResultMap" type="com.zw.bms.model.PaymentDetail">
+		<id column="id" property="id" />
+		<result column="pay_id" property="payId" />
+		<result column="car_id" property="carId" />
+		<result column="item_id" property="itemId" />
+		<result column="price" property="price" />
+		<result column="count" property="count" />
+		<result column="extra_charges" property="extraCharges" />
+		<result column="amount" property="amount" />
+		<result column="payment_mode" property="paymentMode" />
+		<result column="remark" property="remark" />
+		<result column="bill_time" property="billTime" />
+		<result column="daily_date" property="dailyDate" />
+		<result column="create_user" property="createUser" />
+	</resultMap>
+	
+	<resultMap id="selectResultMap" type="com.zw.bms.model.PaymentDetail" extends="BaseResultMap">
+	    <result column="itemName" property="itemName" />
+	    <result column="createUserName" property="createUserName" />
+	    <result column="paymentModeName" property="paymentModeName" />
+	</resultMap>
+	
+	<select id="getPaymentDetailByCarId" resultMap="selectResultMap">
+	    SELECT pd.*,
+	           item.name AS itemName,
+	           u.name AS createUserName,
+	           di.name AS paymentModeName
+	    FROM bi_car_info car
+	    INNER JOIN bi_payment pay ON car.id = pay.car_id
+	    INNER JOIN bi_payment_detail pd ON pd.pay_id = pay.id 
+	    LEFT JOIN bi_charge_item item ON item.id = pd.item_id
+	    LEFT JOIN user u ON u.login_name = pd.create_user
+	    LEFT JOIN bi_dictionary di ON di.code = pd.payment_mode
+	    WHERE car.id = #{id}
+	</select>
+	
+
+</mapper>

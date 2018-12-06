@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zw.bms.mapper.MatchRcjlMapper">
+
+	<!-- 通用查询映射结果 -->
+	<resultMap id="BaseResultMap" type="com.zw.bms.model.MatchRcjl">
+		<id column="id" property="id" />
+		<result column="rc_id" property="rcId" />
+		<result column="rc_no" property="rcNo" />
+		<result column="car_id" property="carId" />
+		<result column="car_no" property="carNo" />
+		<result column="type" property="type" />
+		<result column="remark" property="remark" />
+		<result column="create_user" property="createUser" />
+		<result column="create_time" property="createTime" />
+		<result column="update_user" property="updateUser" />
+		<result column="update_time" property="updateTime" />
+	</resultMap>
+	
+	<!-- 查询入仓匹配列表 -->
+	<select id="selectMatchRcDataList" resultType="hashmap" parameterType="Map">
+	    SELECT mtrc.id AS mtid,
+               mtrc.rc_id AS mtrcid,
+               mtrc.rc_no AS mtrcno,
+               mtrc.car_id AS mtcarid,
+               mtrc.car_no AS mtcarno,
+               mtrc.type AS mttype,
+               mtrc.remark AS mtremark,
+               mtrc.update_time AS mtupdatetime,
+               car.card_no AS cardno,
+               car.in_time AS carintime,
+               car.out_time AS carouttime,
+               mtuser.name AS mtusername,
+               imrc.* 
+        FROM bi_import_rcjl imrc
+        LEFT JOIN bi_match_rcjl mtrc  ON imrc.id = mtrc.rc_id
+        LEFT JOIN bi_car_info car ON car.id = mtrc.car_id
+        LEFT JOIN user mtuser ON mtuser.login_name = mtrc.update_user
+	    WHERE 1 = 1
+	    AND imrc.ytklx NOT IN('工作卡')
+	    <if test="param.carNo != null and param.carNo != ''">
+	        AND imrc.ch LIKE CONCAT('%',#{param.carNo},'%')
+	    </if>
+	    <if test="param.location != null and param.location == 'SQ'">
+	        AND imrc.ckmc = '森桥'
+	    </if>
+	    <if test="param.location != null and param.location == 'FD'">
+	        AND imrc.ckmc = '卡森'
+	    </if>
+	    <if test="param.dateStart != null and param.dateStart != ''">
+	        <![CDATA[ AND imrc.rcsj >= #{param.dateStart} ]]>
+	    </if>
+	    <if test="param.dateEnd != null and param.dateEnd != ''">
+	        <![CDATA[ AND imrc.rcsj < #{param.dateEnd} ]]> 
+	    </if>
+	    <!-- 已匹配  -->
+	    <if test="param.matchType != null and param.matchType != '' and param.matchType != 0 ">
+	       	AND mtrc.type = #{param.matchType}
+	    </if>
+	    <!-- 未匹配 -->
+	    <if test="param.matchType != null and param.matchType != '' and param.matchType == '0'">
+	       	AND mtrc.type IS NULL
+	    </if>
+	    ORDER BY imrc.rcsj
+	</select>
+	
+	<!-- 入仓手动匹配选择车辆列表 -->
+	<select id="selectMatchRcPickList" resultType="hashmap" parameterType="Map">
+	   SELECT mtrc.car_id,
+	   	       inuser.name AS in_user_name,
+	   	       outuser.name AS out_user_name,
+	   	       car.*
+	   	FROM bi_car_info car
+	   	LEFT JOIN user inuser ON car.in_user = inuser.login_name
+        LEFT JOIN user outuser ON car.out_user = outuser.login_name
+        LEFT JOIN bi_match_rcjl mtrc ON mtrc.car_id = car.id
+	    WHERE 1 = 1
+	    <!-- 排除删除状态  -->
+	    <![CDATA[ AND car.car_status <> '2' ]]> 
+	    <!-- 排除已关联的车辆  -->
+	    AND mtrc.car_id IS NULL
+	    <if test="param.carNo != null and param.carNo != ''">
+	        AND car.car_no LIKE CONCAT('%',#{param.carNo},'%')
+	    </if>
+	    <if test="param.location != null and param.location != ''">
+	        AND car.location = #{param.location}
+	    </if>
+	    <if test="param.dateStart != null and param.dateStart != ''">
+	        <![CDATA[ AND car.in_time >= #{param.dateStart} ]]>
+	    </if>
+	    <if test="param.dateEnd != null and param.dateEnd != ''">
+	        <![CDATA[ AND car.in_time < #{param.dateEnd} ]]> 
+	    </if>
+	    ORDER BY car.in_time 
+	</select>
+
+</mapper>

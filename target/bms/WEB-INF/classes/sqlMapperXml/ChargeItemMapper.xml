@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zw.bms.mapper.ChargeItemMapper">
+
+	<!-- 通用查询映射结果 -->
+	<resultMap id="BaseResultMap" type="com.zw.bms.model.ChargeItem">
+		<id column="id" property="id" />
+		<result column="name" property="name" />
+		<result column="type" property="type" />
+		<result column="location" property="location" />
+		<result column="seq" property="seq" />
+		<result column="min_value" property="minValue" />
+		<result column="max_value" property="maxValue" />
+		<result column="item_param" property="itemParam" />
+		<result column="cost" property="cost" />
+		<result column="script_param" property="scriptParam" />
+		<result column="script_str" property="scriptStr" />
+		<result column="status" property="status" />
+		<result column="remark" property="remark" />
+		<result column="create_time" property="createTime" />
+		<result column="create_user" property="createUser" />
+		<result column="update_time" property="updateTime" />
+		<result column="update_user" property="updateUser" />
+	</resultMap>
+	
+	<!-- 计费项目列表查询，解决实体对象与数据库属性名不一致的问题 -->
+	<resultMap id="selectResultMap"  type="com.zw.bms.model.ChargeItem" extends="BaseResultMap">
+	    <result column="locationName" property="locationName"/>
+	    <result column="createUserName" property="createUserName"/>
+	    <result column="updateUserName" property="updateUserName"/>
+	    <result column="itemParamName" property="itemParamName"/>
+	    <result column="typeName" property="typeName"/>
+	    <result column="scriptParamName" property="scriptParamName"/>
+	    <result column="itemParamCode" property="itemParamCode"/>
+	    <result column="scriptParamCode" property="scriptParamCode"/>
+	</resultMap>
+	
+	<select id="selectChargeItemList" resultMap="selectResultMap" >
+	    SELECT item.*,
+	           qy.name as locationName,
+	           lx.name AS typeName,
+	           ip.name AS itemParamName,
+	           sp.name AS scriptParamName
+	   	FROM bi_charge_item item
+	   	LEFT JOIN bi_dictionary ip ON ip.id = item.item_param
+	   	LEFT JOIN bi_dictionary sp ON sp.id = item.script_param
+	   	LEFT JOIN bi_dictionary lx ON lx.code = item.type
+	   	LEFT JOIN bi_dictionary qy ON item.location = qy.code
+	    WHERE item.status IN ('0','1')
+	    <if test="null != chargeItem and chargeItem.name != null and chargeItem.name != '' ">
+	        AND item.name LIKE CONCAT('%',#{chargeItem.name},'%')
+	    </if>    
+	    <if test="null != chargeItem and chargeItem.location != null and chargeItem.location != '' ">
+	        AND item.location = #{chargeItem.location}
+	    </if>    
+	</select>
+	
+	<select id="selectItemsByChargeType" resultMap="selectResultMap">
+	    SELECT link.type_id AS typeId,
+	           itp.code AS itemParamCode,
+	           scp.code AS scriptParamCode,
+	           item.*
+	    FROM bi_charge_item item
+	    INNER JOIN bi_charge_link link ON item.id = link.item_id
+	    LEFT JOIN bi_dictionary itp ON item.item_param = itp.id
+        LEFT JOIN bi_dictionary scp ON item.script_param = scp.id 
+        WHERE 1 = 1
+        <!-- AND (item.item_param > 0 OR item.script_param > 0)  -->
+        AND link.type_id = #{typeId}
+	</select>
+
+</mapper>

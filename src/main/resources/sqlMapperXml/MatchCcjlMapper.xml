@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zw.bms.mapper.MatchCcjlMapper">
+
+	<!-- 通用查询映射结果 -->
+	<resultMap id="BaseResultMap" type="com.zw.bms.model.MatchCcjl">
+		<id column="id" property="id" />
+		<result column="cc_id" property="ccId" />
+		<result column="cc_no" property="ccNo" />
+		<result column="car_id" property="carId" />
+		<result column="car_no" property="carNo" />
+		<result column="remark" property="remark" />
+		<result column="create_user" property="createUser" />
+		<result column="create_time" property="createTime" />
+		<result column="update_user" property="updateUser" />
+		<result column="update_time" property="updateTime" />
+	</resultMap>
+	
+	<!-- 查询出仓匹配列表 -->
+	<select id="selectMatchCcDataList" resultType="hashmap" parameterType="Map">
+	    SELECT mtcc.id AS mtid,
+               mtcc.cc_id AS mtccid,
+               mtcc.cc_no AS mtccno,
+               mtcc.car_id AS mtcarid,
+               mtcc.car_no AS mtcarno,
+               mtcc.type AS mttype,
+               mtcc.remark AS mtremark,
+               mtcc.update_time AS mtupdatetime,
+               car.card_no AS cardno,
+               car.in_time AS carintime,
+               car.out_time AS carouttime,
+               type.name AS chargetype,
+               mtuser.name AS mtusername,
+               imcc.* 
+        FROM bi_import_ccjl imcc
+        LEFT JOIN bi_match_ccjl mtcc  ON imcc.id = mtcc.cc_id
+        LEFT JOIN bi_car_info car ON car.id = mtcc.car_id
+        LEFT JOIN bi_charge_type type ON type.id = car.charge_type
+        LEFT JOIN user mtuser ON mtuser.login_name = mtcc.update_user
+	    WHERE 1 = 1
+	    AND imcc.ytklx NOT IN('工作卡')
+	    <if test="param.carNo != null and param.carNo != ''">
+	        AND imcc.ch LIKE CONCAT('%',#{param.carNo},'%')
+	    </if>
+	    <if test="param.location != null and param.location == 'SQ'">
+	        AND imcc.ckmc = '森桥'
+	    </if>
+	    <if test="param.location != null and param.location == 'FD'">
+	        AND imcc.ckmc = '卡森'
+	    </if>
+	    <if test="param.dateStart != null and param.dateStart != ''">
+	        <![CDATA[ AND imcc.ccsj >= #{param.dateStart} ]]>
+	    </if>
+	    <if test="param.dateEnd != null and param.dateEnd != ''">
+	        <![CDATA[ AND imcc.ccsj < #{param.dateEnd} ]]> 
+	    </if>
+	    <!-- 已匹配  -->
+	    <if test="param.matchType != null and param.matchType != '' and param.matchType != 0 ">
+	       	AND mtcc.type = #{param.matchType}
+	    </if>
+	    <!-- 未匹配 -->
+	    <if test="param.matchType != null and param.matchType != '' and param.matchType == 0 ">
+	       	AND mtcc.type IS NULL
+	    </if>
+	    ORDER BY imcc.ccsj 
+	</select>
+	
+	<!-- 出仓手动匹配选择车辆列表 -->
+	<select id="selectMatchCcPickList" resultType="hashmap" parameterType="Map">
+	   	SELECT mtcc.car_id,
+	   	       inuser.name AS in_user_name,
+	   	       outuser.name AS out_user_name,
+	   	       car.*
+	   	FROM bi_car_info car
+	   	LEFT JOIN user inuser ON car.in_user = inuser.login_name
+        LEFT JOIN user outuser ON car.out_user = outuser.login_name
+        LEFT JOIN bi_match_ccjl mtcc ON mtcc.car_id = car.id
+	    WHERE 1 = 1
+	    <!-- 排除已关联的车辆  -->
+	    AND mtcc.car_id IS NULL
+	    <!-- 已出库状态  -->
+	    AND car.car_status = '1'   
+	    <if test="param.carNo != null and param.carNo != ''">
+	        AND car.car_no LIKE CONCAT('%',#{param.carNo},'%')
+	    </if>
+	    <if test="param.location != null and param.location != ''">
+	        AND car.location = #{param.location}
+	    </if>
+	    <if test="param.dateStart != null and param.dateStart != ''">
+	        <![CDATA[ AND car.out_time >= #{param.dateStart} ]]>
+	    </if>
+	    <if test="param.dateEnd != null and param.dateEnd != ''">
+	        <![CDATA[ AND car.out_time < #{param.dateEnd} ]]> 
+	    </if>
+	    ORDER BY car.out_time 
+	</select>
+
+</mapper>

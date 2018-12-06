@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    status : 这个用于设置log4j2自身内部的信息输出,可以不设置,当设置成trace时,会看到log4j2内部各种详细输出
+    monitorInterval : Log4j能够自动检测修改配置文件和重新配置本身, 设置间隔秒数。此处表示每隔600秒重读一次配置文件
+-->
+<Configuration status="off" monitorInterval="600">
+    <Properties>
+        <!-- 本地log地址 
+        <Property name="log_path">d:/bms/logs</Property> -->
+        <!-- 服务器log地址 -->
+        <Property name="log_path">/mnt/test/apache-tomcat-7.0.52/bmsLogs</Property>  
+        <Property name="file_name">bmslogs</Property>
+    </Properties>
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <!--控制台只输出level及其以上级别的信息（onMatch），其他的直接拒绝（onMismatch）-->
+            <ThresholdFilter level="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>
+            <!--日志输出的格式-->
+            <!--
+                %d{yyyy-MM-dd HH:mm:ss, SSS} : 日志生产时间,输出到毫秒的时间
+                %-5level : 输出日志级别，-5表示左对齐并且固定输出5个字符，如果不足在右边补0
+                %c : logger的名称(%logger)
+                %t : 输出当前线程名称
+                %p : 日志输出格式
+                %m : 日志内容，即 logger.info("message")
+                %n : 换行符
+                %C : Java类名(%F)
+                %L : 行号
+                %M : 方法名
+                %l : 输出语句所在的行数, 包括类名、方法名、文件名、行数
+                hostName : 本地机器名
+                hostAddress : 本地ip地址
+             -->
+            <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n" />
+        </Console>
+        
+        <!--
+                               循环日志文件：日志文件大于阀值的时候，就开始写一个新的日志文件
+                              这个会打印出所有的信息，每次大小超过size，则这size大小的日志会自动存入按年份-月份建立的文件夹下面并进行压缩，作为存档
+
+            fileName    : 指定当前日志文件的位置和文件名称
+            filePattern : 指定当发生Rolling时，文件的转移和重命名规则
+            SizeBasedTriggeringPolicy : 指定当文件体积大于size指定的值时，触发Rolling
+            DefaultRolloverStrategy : 指定最多保存的文件个数
+            TimeBasedTriggeringPolicy : 这个配置需要和filePattern结合使用
+                                    注意filePattern中配置的文件重命名规则是${FILE_NAME}_%d{yyyy-MM-dd}_%i，最小的时间粒度是dd，即天，
+            TimeBasedTriggeringPolicy指定的size是1，结合起来就是每1天生成一个新文件
+        -->
+		<!-- INFO信息记录 -->
+        <RollingFile name="INFO" fileName="${log_path}/${file_name}-INFO.log" filePattern="${log_path}/${file_name}_%d{yyyy-MM-dd}_%i.log.gz">
+            <Filters>
+32           	<ThresholdFilter level="ERROR" onMatch="DENY" onMismatch="NEUTRAL"/>
+33              <ThresholdFilter level="INFO" onMatch="ACCEPT" onMismatch="DENY"/>
+            </Filters>
+            <PatternLayout pattern="%d{yyyy-MM-dd 'at' HH:mm:ss z} %-5level %class{36} %L %M - %msg%xEx%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+                <SizeBasedTriggeringPolicy size="10MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="100"/>
+        </RollingFile>
+
+        <!--错误信息记录-->
+        <RollingFile name="ERROR" fileName="${log_path}/${file_name}-ERROR.log" filePattern="${log_path}/${file_name}-ERROR_%d{yyyy-MM-dd}_%i.log.gz">
+            <Filters>
+                <ThresholdFilter level="FATAL" onMatch="DENY" onMismatch="NEUTRAL"/>
+                <ThresholdFilter level="WARN" onMatch="ACCEPT" onMismatch="DENY"/>
+            </Filters>
+            <PatternLayout pattern="%d{yyyy-MM-dd 'at' HH:mm:ss z} %-5level %class{36} %L %M - %msg%xEx%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+                <SizeBasedTriggeringPolicy size="10MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="100"/>
+        </RollingFile>
+
+        <!--系统级别的错误信息-->
+        <RollingFile name="FATAL" fileName="${log_path}/${file_name}-FATAL.log" filePattern="${log_path}/${file_name}-FATAL_%d{yyyy-MM-dd}_%i.log.gz">
+            <Filters>
+                <ThresholdFilter level="FATAL" onMatch="ACCEPT" onMismatch="DENY"/>
+            </Filters>
+            <PatternLayout pattern="%d{yyyy-MM-dd 'at' HH:mm:ss z} %-5level %class{36} %L %M - %msg%xEx%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+                <SizeBasedTriggeringPolicy size="10MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="100"/>
+        </RollingFile>
+
+        <!--全部日志信息:DEBUG及以上级别-->
+        <RollingFile name="ALL" fileName="${log_path}/${file_name}-ALL.log" filePattern="${log_path}/${file_name}-ALL_%d{yyyy-MM-dd}_%i.log.gz">
+            <Filters>
+                <ThresholdFilter level="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>
+            </Filters>
+            <PatternLayout pattern="%d{yyyy-MM-dd 'at' HH:mm:ss z} %-5level %class{36} %L %M - %msg%xEx%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+                <SizeBasedTriggeringPolicy size="20MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="100"/>
+        </RollingFile>
+
+        <!--配置异步写日志-->
+        <Async name="Async">
+            <AppenderRef ref="ALL"/>
+        </Async>
+        
+    </Appenders>
+    <Loggers>
+        <!-- myibatis log configure -->
+        <logger name="com.apache.ibatis" level="INFO"/>
+        <logger name="org.mybatis.spring" level="DEBUG"/>
+        <logger name="java.sql.Connection" level="DEBUG"/>
+        <logger name="java.sql.Statement" level="DEBUG"/>
+        <logger name="java.sql.PreparedStatement" level="DEBUG"/>
+        
+        <!-- 减少部分debug日志 -->
+        <logger name="druid.sql" level="INFO"/>
+        <logger name="org.apache.shiro" level="INFO"/>
+        <logger name="org.mybatis.spring" level="INFO"/>
+        <logger name="org.springframework" level="INFO"/>
+        <logger name="org.springframework.context" level="WARN"/>
+        <logger name="org.springframework.beans" level="WARN"/>
+        <logger name="com.baomidou.mybatisplus" level="INFO"/>
+        <logger name="org.apache.ibatis.io" level="INFO"/>
+        <logger name="org.apache.velocity" level="INFO"/>
+        <!-- cache INFO -->
+        <logger name="net.sf.ehcache" level="INFO"/>
+        <logger name="org.springframework.cache" level="INFO"/>
+        <logger name="com.zw.bms.commons.shiro.cache" level="INFO"/>
+        
+        <!-- 业务debug日志 -->
+        <logger name="com.zw.bms" level="DEBUG"/>
+        
+        <Root level="debug">
+            <Appender-Ref ref="Console" />
+            <Appender-Ref ref="INFO"/>
+            <Appender-Ref ref="ERROR"/>
+            <Appender-Ref ref="FATAL"/>
+            <Appender-Ref ref="ALL"/>
+        </Root>
+    </Loggers>
+</Configuration>
